@@ -188,7 +188,15 @@ def upgrade() -> None:
         "activity_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("action_type", sa.Enum(name="action_type_enum", create_type=False), nullable=False),
+        sa.Column("action_type", postgresql.ENUM(
+            'user_registered', 'user_login', 'user_logout',
+            'note_created', 'note_updated', 'note_deleted', 'note_restored_from_trash',
+            'note_shared', 'note_unshared', 'note_share_link_created', 'note_share_link_accessed',
+            'note_version_restored',
+            'note_pinned', 'note_unpinned',
+            'note_encrypted', 'note_decrypted',
+            name="action_type_enum", create_type=False
+        ), nullable=False),
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("extra_data", postgresql.JSONB(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
