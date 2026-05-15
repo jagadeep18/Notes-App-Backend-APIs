@@ -59,7 +59,7 @@ class ActivityLog(Base):
         index=True,
     )
     action_type: Mapped[ActionType] = mapped_column(
-        Enum(ActionType, name="action_type_enum"), nullable=False
+        Enum(ActionType, name="action_type_enum", create_type=False), nullable=False
     )
     note_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
