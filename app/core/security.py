@@ -32,10 +32,11 @@ from app.core.exceptions import (
 
 settings = get_settings()
 
+import bcrypt
+
 # 12 rounds in production (~250ms/hash — brute-force resistant)
 # 4 rounds in dev/test (~1ms/hash — fast test feedback loop)
 _bcrypt_rounds = 12 if settings.is_production else 4
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=_bcrypt_rounds)
 
 # Fernet cipher — initialized once, cached
 _fernet = Fernet(settings.encryption_key.encode())
@@ -45,11 +46,15 @@ _fernet = Fernet(settings.encryption_key.encode())
 
 
 def hash_password(plain: str) -> str:
-    return _pwd_context.hash(plain)
+    salt = bcrypt.gensalt(rounds=_bcrypt_rounds)
+    return bcrypt.hashpw(plain.encode('utf-8'), salt).decode('ascii')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return _pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('ascii'))
+    except ValueError:
+        return False
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
