@@ -35,13 +35,9 @@ async def register(
     Create a new account.
     Spec: POST /register with {email, password} → 201 with success message.
     """
-    try:
-        service = AuthService(db)
-        user = await service.register(payload)
-        return {"message": "User registered successfully", "id": str(user.id), "email": user.email}
-    except Exception as e:
-        import traceback
-        return {"message": "Debug Error", "error": str(e), "traceback": traceback.format_exc()}
+    service = AuthService(db)
+    user = await service.register(payload)
+    return {"message": "User registered successfully", "id": str(user.id), "email": user.email}
 
 
 @router.post(

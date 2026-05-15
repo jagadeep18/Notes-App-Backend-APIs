@@ -116,7 +116,7 @@ class NoteShare(Base):
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     permission: Mapped[NotePermission] = mapped_column(
-        Enum(NotePermission, name="note_permission_enum", create_type=False), default=NotePermission.READ, nullable=False
+        Enum(NotePermission, name="note_permission_enum", create_type=False, values_callable=lambda obj: [e.value for e in obj]), default=NotePermission.READ, nullable=False
     )
 
     # Relationships
