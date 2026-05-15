@@ -2,6 +2,7 @@
 app/api/v1/auth.py
 ──────────────────
 Auth endpoints: register, login, refresh, logout, me.
+Spec-compliant paths and response formats.
 """
 from __future__ import annotations
 
@@ -22,31 +23,27 @@ router = APIRouter(tags=["Authentication"])
 
 
 @router.post(
-    "/signup",
-    response_model=UserResponse,
+    "/register",
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
 )
 async def register(
     payload: UserRegisterRequest,
     db: DbSession,
-) -> UserResponse:
+) -> dict:
     """
     Create a new account.
-
-    - **username**: 3–50 chars, alphanumeric + _-
-    - **password**: min 8 chars, must include uppercase, digit, and special char
-    - **email**: normalized to lowercase
+    Spec: POST /register with {email, password} → 201 with success message.
     """
     service = AuthService(db)
     user = await service.register(payload)
-    return UserResponse.model_validate(user)
+    return {"message": "User registered successfully", "id": str(user.id), "email": user.email}
 
 
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Login and receive JWT tokens",
+    summary="Login and receive JWT token",
 )
 async def login(
     payload: LoginRequest,
@@ -54,15 +51,13 @@ async def login(
     db: DbSession,
 ) -> TokenResponse:
     """
-    Authenticate and receive access + refresh tokens.
-
-    Access token expires in 30 minutes.
-    Refresh token expires in 7 days.
+    Authenticate and receive access token.
+    Spec: POST /login → 200 {access_token} or 401 {message}.
     """
     ip_address = request.client.host if request.client else None
     service = AuthService(db)
     tokens = await service.login(payload, ip_address=ip_address)
-    return TokenResponse(**tokens)
+    return TokenResponse(access_token=tokens["access_token"])
 
 
 @router.post(
@@ -74,19 +69,15 @@ async def refresh_token(
     payload: RefreshTokenRequest,
     db: DbSession,
 ) -> TokenResponse:
-    """
-    Exchange a valid refresh token for a new access + refresh token pair.
-    The old refresh token is immediately invalidated (rotation strategy).
-    """
     service = AuthService(db)
     tokens = await service.refresh(payload.refresh_token)
-    return TokenResponse(**tokens)
+    return TokenResponse(access_token=tokens["access_token"])
 
 
 @router.post(
     "/logout",
     response_model=MessageResponse,
-    summary="Logout and invalidate refresh token",
+    summary="Logout",
 )
 async def logout(
     current_user: CurrentUser,

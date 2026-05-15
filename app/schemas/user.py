@@ -1,4 +1,4 @@
-"""app/schemas/user.py — User DTOs."""
+"""app/schemas/user.py — User DTOs (spec-compliant)."""
 from __future__ import annotations
 
 import re
@@ -12,33 +12,14 @@ USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 
 
 class UserRegisterRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
+    """Spec: POST /register — only email and password required."""
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-    full_name: str | None = Field(default=None, max_length=100)
-
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, v: str) -> str:
-        if not USERNAME_RE.match(v):
-            raise ValueError("Username may only contain letters, digits, _ and -")
-        return v.lower()
 
     @field_validator("email")
     @classmethod
     def normalize_email(cls, v: str) -> str:
         return v.lower().strip()
-
-    @field_validator("password")
-    @classmethod
-    def validate_password_strength(cls, v: str) -> str:
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
 
 
 class LoginRequest(BaseModel):
@@ -52,10 +33,8 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    """Spec: login returns {"access_token": "string"}"""
     access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-    expires_in: int  # seconds
 
 
 class RefreshTokenRequest(BaseModel):
