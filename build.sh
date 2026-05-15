@@ -3,7 +3,7 @@
 set -o errexit
 
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt --no-cache-dir
 
 # Nuke the entire public schema and recreate it — guarantees a clean slate
 # Safe because this is a fresh deploy. Remove this block once the initial
