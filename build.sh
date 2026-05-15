@@ -8,7 +8,7 @@ pip install -r requirements.txt
 # Nuke the entire public schema and recreate it — guarantees a clean slate
 # Safe because this is a fresh deploy. Remove this block once the initial
 # migration has succeeded and you have real data.
-python -c "
+python3.11 -c "
 import os, asyncio, asyncpg
 
 async def reset():
@@ -30,4 +30,4 @@ asyncio.run(reset())
 "
 
 # Run database migrations on the clean schema
-alembic upgrade head
+python3.11 -m alembic upgrade head
