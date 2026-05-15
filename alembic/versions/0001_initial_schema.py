@@ -38,7 +38,7 @@ def upgrade() -> None:
     op.create_index("ix_users_email_lower", "users", [sa.text("lower(email)")], unique=True)
 
     # ── note_permission_enum ────────────────────────────────────────────────
-    op.execute("CREATE TYPE note_permission_enum AS ENUM ('read', 'write')")
+    op.execute("DO $$ BEGIN CREATE TYPE note_permission_enum AS ENUM ('read', 'write'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
 
     # ── notes ───────────────────────────────────────────────────────────────
     op.create_table(
@@ -109,7 +109,7 @@ def upgrade() -> None:
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_with_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_by_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("permission", sa.Enum("read", "write", name="note_permission_enum"), nullable=False, server_default="read"),
+        sa.Column("permission", sa.Enum("read", "write", name="note_permission_enum", create_type=False), nullable=False, server_default="read"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["note_id"], ["notes.id"], ondelete="CASCADE"),
@@ -161,14 +161,17 @@ def upgrade() -> None:
 
     # ── action_type_enum ────────────────────────────────────────────────────
     op.execute("""
-        CREATE TYPE action_type_enum AS ENUM (
-            'user_registered','user_login','user_logout',
-            'note_created','note_updated','note_deleted','note_restored_from_trash',
-            'note_shared','note_unshared','note_share_link_created','note_share_link_accessed',
-            'note_version_restored',
-            'note_pinned','note_unpinned',
-            'note_encrypted','note_decrypted'
-        )
+        DO $$ BEGIN
+            CREATE TYPE action_type_enum AS ENUM (
+                'user_registered','user_login','user_logout',
+                'note_created','note_updated','note_deleted','note_restored_from_trash',
+                'note_shared','note_unshared','note_share_link_created','note_share_link_accessed',
+                'note_version_restored',
+                'note_pinned','note_unpinned',
+                'note_encrypted','note_decrypted'
+            );
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
     """)
 
     # ── activity_logs ────────────────────────────────────────────────────────
@@ -176,7 +179,7 @@ def upgrade() -> None:
         "activity_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("user_id", postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column("action_type", sa.Enum(name="action_type_enum"), nullable=False),
+        sa.Column("action_type", sa.Enum(name="action_type_enum", create_type=False), nullable=False),
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column("extra_data", postgresql.JSONB(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
