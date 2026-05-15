@@ -37,9 +37,6 @@ def upgrade() -> None:
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_email_lower", "users", [sa.text("lower(email)")], unique=True)
 
-    # ── note_permission_enum ────────────────────────────────────────────────
-    op.execute("DO $$ BEGIN CREATE TYPE note_permission_enum AS ENUM ('read', 'write'); EXCEPTION WHEN duplicate_object THEN NULL; END $$")
-
     # ── notes ───────────────────────────────────────────────────────────────
     op.create_table(
         "notes",
@@ -109,7 +106,7 @@ def upgrade() -> None:
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_with_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_by_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("permission", sa.Enum("read", "write", name="note_permission_enum", create_type=False), nullable=False, server_default="read"),
+        sa.Column("permission", sa.Enum("read", "write", name="note_permission_enum"), nullable=False, server_default="read"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["note_id"], ["notes.id"], ondelete="CASCADE"),
@@ -117,6 +114,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["shared_by_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("note_id", "shared_with_id", name="uq_note_share_per_user"),
+        checkfirst=True
     )
     op.create_index("ix_note_shares_shared_with", "note_shares", ["shared_with_id"])
 
@@ -161,17 +159,19 @@ def upgrade() -> None:
 
     # ── action_type_enum ────────────────────────────────────────────────────
     op.execute("""
-        DO $$ BEGIN
-            CREATE TYPE action_type_enum AS ENUM (
-                'user_registered','user_login','user_logout',
-                'note_created','note_updated','note_deleted','note_restored_from_trash',
-                'note_shared','note_unshared','note_share_link_created','note_share_link_accessed',
-                'note_version_restored',
-                'note_pinned','note_unpinned',
-                'note_encrypted','note_decrypted'
-            );
-        EXCEPTION WHEN duplicate_object THEN NULL;
-        END $$
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'action_type_enum') THEN
+                CREATE TYPE action_type_enum AS ENUM (
+                    'user_registered','user_login','user_logout',
+                    'note_created','note_updated','note_deleted','note_restored_from_trash',
+                    'note_shared','note_unshared','note_share_link_created','note_share_link_accessed',
+                    'note_version_restored',
+                    'note_pinned','note_unpinned',
+                    'note_encrypted','note_decrypted'
+                );
+            END IF;
+        END $$;
     """)
 
     # ── activity_logs ────────────────────────────────────────────────────────
@@ -187,6 +187,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["note_id"], ["notes.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
+        checkfirst=True
     )
     op.create_index("ix_activity_logs_user_created", "activity_logs", ["user_id", "created_at"])
     op.create_index("ix_activity_logs_note", "activity_logs", ["note_id", "created_at"])
