@@ -99,6 +99,16 @@ def upgrade() -> None:
             FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
         """)
 
+    # ── note_permission_enum ────────────────────────────────────────────────
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'note_permission_enum') THEN
+                CREATE TYPE note_permission_enum AS ENUM ('read', 'write');
+            END IF;
+        END $$;
+    """)
+
     # ── note_shares ─────────────────────────────────────────────────────────
     op.create_table(
         "note_shares",
@@ -198,6 +208,7 @@ def downgrade() -> None:
     op.drop_table("share_links")
     op.drop_table("note_versions")
     op.drop_table("note_shares")
+    op.execute("DROP TYPE IF EXISTS note_permission_enum")
     op.execute("DROP TRIGGER IF EXISTS notes_search_vector_trigger ON notes")
     op.execute("DROP FUNCTION IF EXISTS notes_search_vector_update()")
     op.drop_table("notes")
