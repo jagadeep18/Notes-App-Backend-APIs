@@ -30,6 +30,12 @@ target_metadata = Base.metadata
 # Override with env var if set (important for CI/CD)
 DATABASE_URL = os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
 
+# Render gives postgres:// but asyncpg needs postgresql+asyncpg://
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 
 def run_migrations_offline() -> None:
     context.configure(
