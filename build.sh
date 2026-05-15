@@ -1,41 +1,33 @@
 #!/usr/bin/env bash
 # build.sh — Render build script
-# Render runs this during every deploy
-
-set -o errexit  # exit on error
+set -o errexit
 
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Clean up any partially-applied migration state and re-run
-# This handles cases where a previous deploy failed mid-migration
+# Nuke the entire public schema and recreate it — guarantees a clean slate
+# Safe because this is a fresh deploy. Remove this block once the initial
+# migration has succeeded and you have real data.
 python -c "
 import os, asyncio, asyncpg
 
-async def clean():
+async def reset():
     url = os.environ.get('DATABASE_URL', '')
-    if url.startswith('postgresql+asyncpg://'):
-        url = url.replace('postgresql+asyncpg://', 'postgresql://', 1)
+    # asyncpg needs postgresql:// not postgresql+asyncpg://
+    for prefix in ('postgresql+asyncpg://', 'postgres://'):
+        if url.startswith(prefix):
+            url = url.replace(prefix, 'postgresql://', 1)
+            break
     conn = await asyncpg.connect(url)
-    # Drop all tables/types if alembic_version doesn't exist (partial migration)
-    has_alembic = await conn.fetchval(
-        \"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='alembic_version')\"
-    )
-    if not has_alembic:
-        print('No alembic_version table — cleaning up partial migration artifacts...')
-        for table in ['activity_logs','share_links','note_versions','note_shares','notes','users']:
-            await conn.execute(f'DROP TABLE IF EXISTS {table} CASCADE')
-        await conn.execute('DROP TYPE IF EXISTS note_permission_enum')
-        await conn.execute('DROP TYPE IF EXISTS action_type_enum')
-        await conn.execute('DROP FUNCTION IF EXISTS notes_search_vector_update() CASCADE')
-        await conn.execute('DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE')
-        print('Cleanup done.')
-    else:
-        print('alembic_version exists — running normal migration.')
+    print('Dropping and recreating public schema for clean migration...')
+    await conn.execute('DROP SCHEMA public CASCADE')
+    await conn.execute('CREATE SCHEMA public')
+    await conn.execute('GRANT ALL ON SCHEMA public TO PUBLIC')
+    print('Schema reset complete.')
     await conn.close()
 
-asyncio.run(clean())
+asyncio.run(reset())
 "
 
-# Run database migrations
+# Run database migrations on the clean schema
 alembic upgrade head
