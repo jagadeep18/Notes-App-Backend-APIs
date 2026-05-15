@@ -37,16 +37,6 @@ def upgrade() -> None:
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_email_lower", "users", [sa.text("lower(email)")], unique=True)
 
-    # ── note_permission_enum ────────────────────────────────────────────────
-    op.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'note_permission_enum') THEN
-                CREATE TYPE note_permission_enum AS ENUM ('read', 'write');
-            END IF;
-        END $$;
-    """)
-
     # ── notes ───────────────────────────────────────────────────────────────
     op.create_table(
         "notes",
@@ -116,7 +106,7 @@ def upgrade() -> None:
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_with_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_by_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("permission", sa.Enum("read", "write", name="note_permission_enum", create_type=False), nullable=False, server_default="read"),
+        sa.Column("permission", postgresql.ENUM('read', 'write'), nullable=False, server_default="read"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["note_id"], ["notes.id"], ondelete="CASCADE"),
@@ -211,5 +201,4 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS notes_search_vector_trigger ON notes")
     op.execute("DROP FUNCTION IF EXISTS notes_search_vector_update()")
     op.drop_table("notes")
-    op.execute("DROP TYPE IF EXISTS note_permission_enum")
     op.drop_table("users")
