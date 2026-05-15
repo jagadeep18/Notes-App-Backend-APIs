@@ -62,9 +62,14 @@ async def create_note(
     Create a new note. Set `is_private=true` to encrypt content at rest.
     Private note content is decrypted transparently for authorized reads.
     """
-    service = NoteService(db)
-    note = await service.create_note(current_user, payload)
-    return NoteResponse.model_validate(note)
+    try:
+        service = NoteService(db)
+        note = await service.create_note(current_user, payload)
+        return NoteResponse.model_validate(note)
+    except Exception as e:
+        import traceback
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e) + "\n" + traceback.format_exc())
 
 
 @router.get(
