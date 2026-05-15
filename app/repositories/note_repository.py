@@ -28,10 +28,18 @@ class NoteRepository(BaseRepository[Note]):
         )
 
         if search:
-            # PostgreSQL full-text search with tsquery
-            base_q = base_q.where(
-                Note.search_vector.op("@@")(func.plainto_tsquery("english", search))
-            )
+            # PostgreSQL: use tsvector FTS (fast, GIN-indexed)
+            # SQLite fallback: ILIKE on title+content (for tests)
+            db_url = str(self._session.bind.url) if self._session.bind else ""
+            if "sqlite" in db_url:
+                like_pattern = f"%{search}%"
+                base_q = base_q.where(
+                    or_(Note.title.ilike(like_pattern), Note.content.ilike(like_pattern))
+                )
+            else:
+                base_q = base_q.where(
+                    Note.search_vector.op("@@")(func.plainto_tsquery("english", search))
+                )
 
         count_q = select(func.count()).select_from(base_q.subquery())
         total = (await self._session.execute(count_q)).scalar_one()

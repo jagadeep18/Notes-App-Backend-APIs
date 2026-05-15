@@ -8,13 +8,18 @@ Design: create_app() factory pattern (not a module-level app instance) allows:
 2. Multiple app variants (e.g., minimal health-check app for load balancers)
 3. Clean startup/shutdown lifecycle with lifespan context manager
 """
-from __future__ import annotations
+
 
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from typing import Annotated
 
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -24,8 +29,12 @@ from app.api.exception_handlers import register_exception_handlers
 from app.api.middleware import RequestLoggingMiddleware
 from app.api.v1 import auth, notes, activity
 from app.core.config import get_settings
+from app.core.dependencies import CurrentUser, DbSession
 from app.core.logging import configure_logging, get_logger
 from app.db.base import engine
+from app.schemas.common import PaginatedResponse, PaginationParams
+from app.schemas.note import NoteResponse
+from app.services.note_service import NoteService
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -151,33 +160,35 @@ A multi-user notes backend with:
         }
 
     # ── Search (dedicated endpoint) ───────────────────────────────────────────
-    from fastapi import Depends, Query
-    from app.core.dependencies import CurrentUser, DbSession
-    from app.schemas.note import NoteResponse
-    from app.schemas.common import PaginatedResponse, PaginationParams
-    from app.services.note_service import NoteService
-    from typing import Annotated
 
-    def _get_pagination(
+    def _search_pagination(
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=20, ge=1, le=100),
     ) -> PaginationParams:
         return PaginationParams(page=page, page_size=page_size)
 
-    PaginationDep = Annotated[PaginationParams, Depends(_get_pagination)]
+    SearchPaginationDep = Annotated[PaginationParams, Depends(_search_pagination)]
 
     @app.get("/search", tags=["Search"], response_model=PaginatedResponse, summary="Full-text search notes")
     async def search_notes(
         current_user: CurrentUser,
         db: DbSession,
-        pagination: PaginationDep,
+        pagination: SearchPaginationDep,
         q: str = Query(..., min_length=1, description="Search keyword"),
     ) -> PaginatedResponse:
         """Search across all your notes by keyword. Uses PostgreSQL full-text search."""
         service = NoteService(db)
-        notes, total = await service.list_notes(current_user, pagination, search=q)
-        items = [NoteResponse.model_validate(n) for n in notes]
+        found_notes, total = await service.list_notes(current_user, pagination, search=q)
+        items = [NoteResponse.model_validate(n) for n in found_notes]
         return PaginatedResponse.create(items=items, total=total, pagination=pagination)
+
+    # ── Static Files & Frontend ─────────────────────────────────────────
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_frontend():
+        return FileResponse(str(static_dir / "index.html"))
 
     return app
 

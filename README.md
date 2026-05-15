@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Notes API
 
 A production-grade multi-user Notes backend built with **FastAPI**, **PostgreSQL**, and **async SQLAlchemy**. Designed to demonstrate engineering depth across architecture, security, scalability, and product thinking.
@@ -254,3 +255,7 @@ open htmlcov/index.html
 ├── Dockerfile
 └── pyproject.toml
 ```
+=======
+# Notes-App-Backend-APIs-
+A small backend application for a multi-user notes service. It exposes REST APIs to manage users and their personal notes.
+>>>>>>> 90c49642d4949cda54b8ef77958e9ee6d1d69a97

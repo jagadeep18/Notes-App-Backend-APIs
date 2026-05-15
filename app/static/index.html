@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A production-grade Notes API with JWT auth, sharing, search, and version history.">
+  <title>Notes App</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- ── Auth Screen ──────────────────────────────────────────────── -->
+    <div id="auth-screen" class="auth-container">
+      <div class="auth-card">
+        <h2>📝 Notes App</h2>
+        <p class="subtitle">Secure, shareable, production-grade notes</p>
+        <div class="auth-tabs">
+          <button class="auth-tab active" onclick="switchTab('login')">Login</button>
+          <button class="auth-tab" onclick="switchTab('signup')">Sign Up</button>
+        </div>
+        <div id="auth-error" class="auth-error"></div>
+
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-input" id="login-email" required placeholder="you@example.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" class="form-input" id="login-password" required placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+
+        <!-- Signup Form -->
+        <form id="signup-form" class="auth-form" style="display:none" onsubmit="handleSignup(event)">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" class="form-input" id="signup-username" required placeholder="johndoe" minlength="3">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" class="form-input" id="signup-email" required placeholder="you@example.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" class="form-input" id="signup-password" required placeholder="Min 8 chars, 1 uppercase, 1 digit, 1 special">
+          </div>
+          <div class="form-group">
+            <label>Full Name (optional)</label>
+            <input type="text" class="form-input" id="signup-fullname" placeholder="John Doe">
+          </div>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ── Main App Screen ──────────────────────────────────────────── -->
+    <div id="main-screen" style="display:none">
+      <header class="header">
+        <h1>📝 Notes App</h1>
+        <div class="header-actions">
+          <span class="user-badge" id="user-badge"></span>
+          <button class="btn btn-secondary btn-sm" onclick="showAbout()">About</button>
+          <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search notes..." oninput="debounceSearch()">
+        </div>
+        <button class="btn btn-primary" onclick="openNewNote()">+ New Note</button>
+      </div>
+
+      <div id="notes-container" class="notes-grid"></div>
+      <div id="pagination" class="pagination"></div>
+    </div>
+
+    <!-- ── Note Modal ───────────────────────────────────────────────── -->
+    <div id="note-modal" class="modal-overlay" onclick="closeModalOutside(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2 id="modal-title">New Note</h2>
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="note-form" onsubmit="handleSaveNote(event)">
+          <input type="hidden" id="note-id">
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" class="form-input" id="note-title" required placeholder="Note title">
+          </div>
+          <div class="form-group">
+            <label>Content</label>
+            <textarea class="form-input" id="note-content" required placeholder="Write your note..."></textarea>
+          </div>
+          <div class="form-group" style="display:flex;align-items:center;gap:10px">
+            <input type="checkbox" id="note-private" style="width:auto">
+            <label for="note-private" style="margin:0">🔒 Private (encrypted at rest)</label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="delete-btn" style="display:none" onclick="handleDeleteNote()">Delete</button>
+            <button type="button" class="btn btn-secondary" id="pin-btn" style="display:none" onclick="handlePinToggle()">📌 Pin</button>
+            <div style="flex:1"></div>
+            <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
+          </div>
+        </form>
+
+        <!-- Share Section (only for existing notes) -->
+        <div id="share-section" class="share-section" style="display:none">
+          <h4>Share this note</h4>
+          <div class="share-input-row">
+            <input type="text" class="form-input" id="share-user-id" placeholder="User ID to share with">
+            <select class="form-input" id="share-permission" style="width:auto">
+              <option value="read">Read</option>
+              <option value="write">Write</option>
+            </select>
+            <button type="button" class="btn btn-primary btn-sm" onclick="handleShareNote()">Share</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── About Modal ──────────────────────────────────────────────── -->
+    <div id="about-modal" class="modal-overlay" onclick="closeAboutOutside(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h2>About Notes App</h2>
+          <button class="modal-close" onclick="closeAbout()">&times;</button>
+        </div>
+        <div id="about-content"></div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

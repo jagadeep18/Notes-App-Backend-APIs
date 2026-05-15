@@ -69,11 +69,11 @@ async def registered_user(client: AsyncClient) -> dict:
         "password": "Test@1234",
         "full_name": "Test User",
     }
-    resp = await client.post("/api/v1/auth/register", json=payload)
+    resp = await client.post("/signup", json=payload)
     assert resp.status_code == 201, resp.text
 
     login_resp = await client.post(
-        "/api/v1/auth/login",
+        "/login",
         json={"email": payload["email"], "password": "Test@1234"},
     )
     tokens = login_resp.json()
@@ -94,10 +94,10 @@ async def second_user(client: AsyncClient) -> dict:
         "email": f"other{suffix}@example.com",
         "password": "Other@5678",
     }
-    resp = await client.post("/api/v1/auth/register", json=payload)
+    resp = await client.post("/signup", json=payload)
     assert resp.status_code == 201, resp.text
     login_resp = await client.post(
-        "/api/v1/auth/login",
+        "/login",
         json={"email": payload["email"], "password": "Other@5678"},
     )
     tokens = login_resp.json()

@@ -1,18 +1,36 @@
-.env
-*.pyc
+# Python
 __pycache__/
+*.pyc
+*.pyo
 *.egg-info/
 dist/
 build/
+.eggs/
+
+# Virtual environment
 .venv/
 venv/
-*.db
-*.sqlite
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env files
+.env
+
+# Test artifacts
+test.db
+unit_test.db
 .coverage
-coverage.xml
 htmlcov/
 .pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.log
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Docker
+*.log
