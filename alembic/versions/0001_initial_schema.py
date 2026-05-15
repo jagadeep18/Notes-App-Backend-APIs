@@ -106,7 +106,7 @@ def upgrade() -> None:
         sa.Column("note_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_with_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("shared_by_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("permission", postgresql.ENUM('read', 'write'), nullable=False, server_default="read"),
+        sa.Column("permission", postgresql.ENUM('read', 'write', name='note_permission_enum', create_type=False), nullable=False, server_default="read"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["note_id"], ["notes.id"], ondelete="CASCADE"),
