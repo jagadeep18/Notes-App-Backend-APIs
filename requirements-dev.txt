@@ -1,0 +1,10 @@
+-r requirements.txt
+pytest==8.2.0
+pytest-asyncio==0.23.6
+pytest-cov==5.0.0
+anyio[trio]==4.3.0
+factory-boy==3.3.0
+faker==25.0.0
+aiosqlite==0.20.0
+ruff==0.4.4
+mypy==1.10.0

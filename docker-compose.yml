@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  # ── API ────────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://notes_user:notes_pass@postgres:5432/notesdb
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change_me_in_production_min_32_chars}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-change_me_fernet_key}
+      - APP_ENV=development
+      - LOG_LEVEL=DEBUG
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app  # hot-reload in dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - notes-net
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: notes_user
+      POSTGRES_PASSWORD: notes_pass
+      POSTGRES_DB: notesdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes_user -d notesdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notes-net
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - notes-net
+
+  # ── Migrations (one-shot service) ──────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://notes_user:notes_pass@postgres:5432/notesdb
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - notes-net
+
+networks:
+  notes-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

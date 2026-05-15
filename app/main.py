@@ -1,0 +1,186 @@
+"""
+app/main.py
+────────────
+Application factory.
+
+Design: create_app() factory pattern (not a module-level app instance) allows:
+1. Test isolation — each test suite gets a fresh app with its own state
+2. Multiple app variants (e.g., minimal health-check app for load balancers)
+3. Clean startup/shutdown lifecycle with lifespan context manager
+"""
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+from app.api.exception_handlers import register_exception_handlers
+from app.api.middleware import RequestLoggingMiddleware
+from app.api.v1 import auth, notes, activity
+from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger
+from app.db.base import engine
+
+settings = get_settings()
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    Startup: configure logging, warm connection pool.
+    Shutdown: dispose pool gracefully.
+    """
+    configure_logging()
+    logger.info("application_starting", version=settings.app_version, env=settings.app_env)
+
+    # Warm the connection pool at startup (avoid cold-start latency on first request)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda _: None)
+        logger.info("database_pool_initialized")
+    except Exception as exc:
+        logger.warning("database_connection_failed", error=str(exc),
+                       hint="App will retry on first request. Start Postgres or use Docker Compose.")
+
+    yield
+
+    await engine.dispose()
+    logger.info("application_shutdown")
+
+
+# Rate limiter — uses Redis in production via REDIS_URL
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="""\
+## Production-Grade Notes API
+
+A multi-user notes backend with:
+- **JWT Authentication** with refresh token rotation
+- **CRUD Notes** with soft-delete and full-text search
+- **Note Sharing** with per-user permissions
+- **Version History** — every edit is snapshotted
+- **Expiring Share Links** — secure token-based public access
+- **Encrypted Private Notes** — AES-based at-rest encryption
+- **Pinned Notes** — up to 5 per user, always surfaced first
+- **Activity Timeline** — full audit trail of user actions
+        """,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
+    )
+
+    # ── Rate Limiting ─────────────────────────────────────────────────────────
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    # ── CORS ──────────────────────────────────────────────────────────────────
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=settings.cors_allow_credentials,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Correlation-ID", "X-Response-Time"],
+    )
+
+    # ── Request Logging ───────────────────────────────────────────────────────
+    app.add_middleware(RequestLoggingMiddleware)
+
+    # ── Exception Handlers ────────────────────────────────────────────────────
+    register_exception_handlers(app)
+
+    # ── Routers (root level — matches automated test paths) ───────────────────
+    # Auth: /signup, /login, /logout, /me, /refresh
+    app.include_router(auth.router)
+
+    # Notes: /notes, /notes/{id}, /notes/{id}/share, etc.
+    app.include_router(notes.router)
+
+    # Share links: /shared/{token}
+    app.include_router(notes.shared_router)
+
+    # Activity: /activity
+    app.include_router(activity.router)
+
+    # ── Also mount under /api/v1 for versioned access ─────────────────────────
+    API_PREFIX = "/api/v1"
+    app.include_router(auth.router, prefix=API_PREFIX)
+    app.include_router(notes.router, prefix=API_PREFIX)
+    app.include_router(notes.shared_router, prefix=API_PREFIX)
+    app.include_router(activity.router, prefix=API_PREFIX)
+
+    # ── Health Check ─────────────────────────────────────────────────────────
+    @app.get("/health", tags=["System"], summary="Health check")
+    async def health() -> dict:
+        return {"status": "ok", "version": settings.app_version, "env": settings.app_env}
+
+    # ── About ─────────────────────────────────────────────────────────────────
+    @app.get("/about", tags=["System"], summary="About this API")
+    async def about() -> dict:
+        return {
+            "app": settings.app_name,
+            "version": settings.app_version,
+            "description": "A production-grade multi-user Notes API with JWT auth, "
+                           "note sharing, version history, encrypted notes, and full-text search.",
+            "features": [
+                "JWT Authentication with refresh token rotation",
+                "CRUD Notes with soft-delete",
+                "Note Sharing with per-user permissions",
+                "Smart Version History with restore",
+                "Expiring Share Links (token-hashed)",
+                "Encrypted Private Notes (AES at rest)",
+                "Pinned Notes (max 5 per user)",
+                "Full-text Search (PostgreSQL tsvector + GIN)",
+                "Activity Timeline (audit log)",
+                "Pagination on all list endpoints",
+            ],
+        }
+
+    # ── Search (dedicated endpoint) ───────────────────────────────────────────
+    from fastapi import Depends, Query
+    from app.core.dependencies import CurrentUser, DbSession
+    from app.schemas.note import NoteResponse
+    from app.schemas.common import PaginatedResponse, PaginationParams
+    from app.services.note_service import NoteService
+    from typing import Annotated
+
+    def _get_pagination(
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=20, ge=1, le=100),
+    ) -> PaginationParams:
+        return PaginationParams(page=page, page_size=page_size)
+
+    PaginationDep = Annotated[PaginationParams, Depends(_get_pagination)]
+
+    @app.get("/search", tags=["Search"], response_model=PaginatedResponse, summary="Full-text search notes")
+    async def search_notes(
+        current_user: CurrentUser,
+        db: DbSession,
+        pagination: PaginationDep,
+        q: str = Query(..., min_length=1, description="Search keyword"),
+    ) -> PaginatedResponse:
+        """Search across all your notes by keyword. Uses PostgreSQL full-text search."""
+        service = NoteService(db)
+        notes, total = await service.list_notes(current_user, pagination, search=q)
+        items = [NoteResponse.model_validate(n) for n in notes]
+        return PaginatedResponse.create(items=items, total=total, pagination=pagination)
+
+    return app
+
+
+app = create_app()
+
