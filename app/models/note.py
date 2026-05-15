@@ -72,7 +72,7 @@ class Note(Base):
 
     # Full-text search (populated by DB trigger on Postgres)
     # Using Text here for SQLite test compatibility; migration creates TSVECTOR + GIN on Postgres
-    search_vector: Mapped[str | None] = mapped_column(Text, nullable=True, deferred=True)
+    search_vector: Mapped[str | None] = mapped_column(Text, nullable=True, deferred=True, server_default=text("''"))
 
     # ── Relationships ─────────────────────────────────────────────────────────
     owner: Mapped["User"] = relationship("User", back_populates="notes")  # type: ignore[name-defined]
