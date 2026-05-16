@@ -119,7 +119,11 @@ async function handleRegister(e) {
     document.getElementById('login-email').value = body.email;
   } else {
     const err = await res.json();
-    showAuthError(err.detail || err.error?.message || 'Registration failed');
+    let msg = err.detail || err.error?.message || 'Registration failed';
+    if (err.error?.details?.errors) {
+      msg = err.error.details.errors.map(e => `${e.field.replace('body.', '')}: ${e.message}`).join(' | ');
+    }
+    showAuthError(msg);
   }
 }
 
