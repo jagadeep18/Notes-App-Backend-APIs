@@ -62,6 +62,9 @@
         <h1>📝 Notes App</h1>
         <div class="header-actions">
           <span class="user-badge" id="user-badge"></span>
+          <button class="btn btn-secondary btn-sm" id="nav-all" onclick="switchMainView('all')">My Notes</button>
+          <button class="btn btn-secondary btn-sm" id="nav-shared" onclick="switchMainView('shared')">Shared</button>
+          <button class="btn btn-secondary btn-sm" id="nav-fav" onclick="switchMainView('favourites')">Favourites</button>
           <button class="btn btn-secondary btn-sm" onclick="showAbout()">About</button>
           <button class="btn btn-danger btn-sm" onclick="handleLogout()">Logout</button>
         </div>

@@ -8,6 +8,7 @@ let refreshToken = localStorage.getItem('refresh_token');
 let currentUser = null;
 let currentPage = 1;
 let searchTimeout = null;
+let currentView = 'all';
 
 // ── API Helper ───────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -180,24 +181,58 @@ async function loadUser() {
 function showMainScreen() {
   document.getElementById('auth-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
-  loadNotes();
+  switchMainView('all');
+}
+
+function switchMainView(view) {
+  currentView = view;
+  document.getElementById('search-input').value = '';
+  
+  ['nav-all', 'nav-shared', 'nav-fav'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) {
+      el.classList.remove('btn-primary');
+      el.classList.add('btn-secondary');
+    }
+  });
+  
+  const activeId = view === 'all' ? 'nav-all' : (view === 'shared' ? 'nav-shared' : 'nav-fav');
+  const activeEl = document.getElementById(activeId);
+  if(activeEl) {
+    activeEl.classList.remove('btn-secondary');
+    activeEl.classList.add('btn-primary');
+  }
+  
+  loadNotes(1, '');
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────────
 async function loadNotes(page = 1, search = '') {
   currentPage = page;
   let url = `/notes?page=${page}&page_size=12`;
-  if (search) url = `/search?q=${encodeURIComponent(search)}&page=${page}&page_size=12`;
+  
+  if (currentView === 'shared') {
+    url = `/notes/shared?page=${page}&page_size=12`;
+  }
+  
+  if (search) {
+    url = `/search?q=${encodeURIComponent(search)}&page=${page}&page_size=12`;
+    currentView = 'all'; // searching across all
+  }
 
   const res = await api(url);
   if (!res || !res.ok) return;
   const data = await res.json();
   
   // Handle both list (new spec) and paginated (old spec/stretch) formats
-  const notes = Array.isArray(data) ? data : (data.items || []);
+  let notes = Array.isArray(data) ? data : (data.items || []);
+
+  if (currentView === 'favourites') {
+    notes = notes.filter(n => n.is_pinned);
+  }
 
   renderNotes(notes);
-  if (!Array.isArray(data)) {
+  if (!Array.isArray(data) && currentView !== 'favourites') {
     renderPagination(data.total, data.page, data.page_size);
   } else {
     document.getElementById('pagination').innerHTML = '';
