@@ -242,11 +242,23 @@ async function loadNotes(page = 1, search = '') {
 function renderNotes(notes) {
   const container = document.getElementById('notes-container');
   if (notes.length === 0) {
+    let msg = "Create your first note to get started.";
+    let icon = "📝";
+    let title = "No notes yet";
+    if (currentView === 'shared') {
+        msg = "No notes have been shared with you yet.";
+        icon = "🤝";
+        title = "No Shared Notes";
+    } else if (currentView === 'favourites') {
+        msg = "Pin notes to see them in your favourites.";
+        icon = "⭐";
+        title = "No Favourites";
+    }
     container.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1">
-        <div class="icon">📝</div>
-        <h3>No notes yet</h3>
-        <p>Create your first note to get started.</p>
+        <div class="icon">${icon}</div>
+        <h3>${title}</h3>
+        <p>${msg}</p>
       </div>`;
     return;
   }
