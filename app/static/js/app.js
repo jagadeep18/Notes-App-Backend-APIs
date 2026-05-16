@@ -52,11 +52,11 @@ function switchTab(tab) {
   if (tab === 'login') {
     document.querySelectorAll('.auth-tab')[0].classList.add('active');
     document.getElementById('login-form').style.display = 'block';
-    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('register-form').style.display = 'none';
   } else {
     document.querySelectorAll('.auth-tab')[1].classList.add('active');
     document.getElementById('login-form').style.display = 'none';
-    document.getElementById('signup-form').style.display = 'block';
+    document.getElementById('register-form').style.display = 'block';
   }
 }
 
@@ -66,13 +66,13 @@ function showAuthError(msg) {
   el.style.display = 'block';
 }
 
-async function handleSignup(e) {
+async function handleRegister(e) {
   e.preventDefault();
   const body = {
-    username: document.getElementById('signup-username').value,
-    email: document.getElementById('signup-email').value,
-    password: document.getElementById('signup-password').value,
-    full_name: document.getElementById('signup-fullname').value || undefined,
+    username: document.getElementById('register-username').value,
+    email: document.getElementById('register-email').value,
+    password: document.getElementById('register-password').value,
+    full_name: document.getElementById('register-fullname').value || undefined,
   };
   const res = await fetch(`${API}/register`, {
     method: 'POST',
