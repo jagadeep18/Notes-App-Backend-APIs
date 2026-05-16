@@ -46,19 +46,53 @@ async function tryRefresh() {
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────
-function switchTab(tab) {
+function switchTab(tab, updateUrl = true) {
   document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('auth-error').style.display = 'none';
+  
   if (tab === 'login') {
     document.querySelectorAll('.auth-tab')[0].classList.add('active');
     document.getElementById('login-form').style.display = 'block';
     document.getElementById('register-form').style.display = 'none';
+    if (updateUrl && window.location.pathname !== '/login') {
+      window.history.pushState({}, '', '/login');
+    }
   } else {
     document.querySelectorAll('.auth-tab')[1].classList.add('active');
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('register-form').style.display = 'block';
+    if (updateUrl && window.location.pathname !== '/register') {
+      window.history.pushState({}, '', '/register');
+    }
   }
 }
+
+// ── Routing ──────────────────────────────────────────────────────────────
+async function initRouting() {
+  const path = window.location.pathname;
+  
+  if (token) {
+    await loadUser();
+  }
+
+  if (currentUser) {
+    if (path === '/login' || path === '/register') {
+      window.history.replaceState({}, '', '/');
+    }
+    showMainScreen();
+  } else {
+    if (path === '/register') {
+      switchTab('register', false);
+    } else {
+      if (path !== '/login') window.history.replaceState({}, '', '/login');
+      switchTab('login', false);
+    }
+    document.getElementById('auth-screen').style.display = 'block';
+    document.getElementById('main-screen').style.display = 'none';
+  }
+}
+
+window.onpopstate = initRouting;
 
 function showAuthError(msg) {
   const el = document.getElementById('auth-error');
@@ -107,6 +141,7 @@ async function handleLogin(e) {
     localStorage.setItem('access_token', token);
     localStorage.setItem('refresh_token', refreshToken);
     await loadUser();
+    window.history.pushState({}, '', '/');
     showMainScreen();
   } else {
     showAuthError('Invalid email or password');
@@ -126,6 +161,8 @@ function logout() {
   localStorage.removeItem('refresh_token');
   document.getElementById('auth-screen').style.display = 'block';
   document.getElementById('main-screen').style.display = 'none';
+  window.history.pushState({}, '', '/login');
+  switchTab('login', false);
 }
 
 async function loadUser() {
@@ -380,12 +417,5 @@ function timeAgo(dateStr) {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 (async function init() {
-  if (token) {
-    await loadUser();
-    if (currentUser) {
-      showMainScreen();
-    } else {
-      logout();
-    }
-  }
+  await initRouting();
 })();
