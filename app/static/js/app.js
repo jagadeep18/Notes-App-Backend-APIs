@@ -74,7 +74,7 @@ async function handleSignup(e) {
     password: document.getElementById('signup-password').value,
     full_name: document.getElementById('signup-fullname').value || undefined,
   };
-  const res = await fetch(`${API}/signup`, {
+  const res = await fetch(`${API}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -151,9 +151,16 @@ async function loadNotes(page = 1, search = '') {
   const res = await api(url);
   if (!res || !res.ok) return;
   const data = await res.json();
+  
+  // Handle both list (new spec) and paginated (old spec/stretch) formats
+  const notes = Array.isArray(data) ? data : (data.items || []);
 
-  renderNotes(data.items || []);
-  renderPagination(data.total, data.page, data.page_size);
+  renderNotes(notes);
+  if (!Array.isArray(data)) {
+    renderPagination(data.total, data.page, data.page_size);
+  } else {
+    document.getElementById('pagination').innerHTML = '';
+  }
 }
 
 function renderNotes(notes) {
@@ -302,7 +309,7 @@ async function handleShareNote() {
 
   const res = await api(`/notes/${noteId}/share`, {
     method: 'POST',
-    body: JSON.stringify({ user_id: userId, permission }),
+    body: JSON.stringify({ share_with_email: userId }), // Specs say share_with_email
   });
 
   if (res && res.ok) {
@@ -321,17 +328,22 @@ async function showAbout() {
 
   document.getElementById('about-content').innerHTML = `
     <div class="about-card">
-      <h3>${data.app} <span style="font-size:.8rem;color:var(--text-dim)">v${data.version}</span></h3>
-      <p style="color:var(--text-dim);margin-bottom:16px">${data.description}</p>
-      <ul class="feature-list">
-        ${data.features.map(f => `<li>${f}</li>`).join('')}
-      </ul>
+      <h3>${data.name} <span style="font-size:.8rem;color:var(--text-dim)">${data.email}</span></h3>
+      <p style="color:var(--text-dim);margin-bottom:16px">Developed for Assignment</p>
+      <div class="feature-grid">
+        ${Object.entries(data['my features']).map(([name, desc]) => `
+          <div class="feature-item">
+            <strong>${name}</strong>
+            <p>${desc}</p>
+          </div>
+        `).join('')}
+      </div>
     </div>
     <div class="about-card">
       <h3>API Documentation</h3>
       <p style="color:var(--text-dim);margin-bottom:12px">Explore the full API:</p>
       <a href="/docs" target="_blank" class="btn btn-primary btn-sm" style="margin-right:8px">Swagger UI</a>
-      <a href="/redoc" target="_blank" class="btn btn-secondary btn-sm">ReDoc</a>
+      <a href="/redoc" target="_blank" class="btn btn-secondary btn-sm">OpenAPI JSON</a>
     </div>
   `;
   document.getElementById('about-modal').classList.add('active');

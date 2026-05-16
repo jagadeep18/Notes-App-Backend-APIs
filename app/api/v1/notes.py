@@ -69,7 +69,7 @@ async def create_note(
 
 @router.get(
     "",
-    response_model=PaginatedResponse,
+    response_model=list[NoteResponse],
     summary="List all owned notes",
 )
 async def list_notes(
@@ -77,15 +77,14 @@ async def list_notes(
     db: DbSession,
     pagination: PaginationDep,
     search: str | None = Query(default=None, description="Full-text search query"),
-) -> PaginatedResponse:
+) -> list[NoteResponse]:
     """
     Returns owned notes. Pinned notes appear first.
     Supports full-text search across title and content.
     """
     service = NoteService(db)
     notes, total = await service.list_notes(current_user, pagination, search=search)
-    items = [NoteResponse.model_validate(n) for n in notes]
-    return PaginatedResponse.create(items=items, total=total, pagination=pagination)
+    return [NoteResponse.model_validate(n) for n in notes]
 
 
 @router.get(
@@ -160,8 +159,8 @@ async def delete_note(
 
 @router.post(
     "/{note_id}/share",
-    response_model=NoteShareResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
     summary="Share a note with a user",
 )
 async def share_note(
@@ -169,10 +168,19 @@ async def share_note(
     payload: NoteShareRequest,
     current_user: CurrentUser,
     db: DbSession,
-) -> NoteShareResponse:
+) -> MessageResponse:
+    from app.repositories.user_repository import UserRepository
+    from app.core.exceptions import NotFoundError
+    
+    user_repo = UserRepository(db)
+    target_user = await user_repo.get_by_email(payload.share_with_email)
+    if not target_user:
+        raise NotFoundError("User with that email not found")
+        
     service = NoteService(db)
-    share = await service.share_note(note_id, current_user, payload.user_id, payload.permission)
-    return NoteShareResponse.model_validate(share)
+    # Default to READ permission as per spec (which doesn't mention permissions)
+    await service.share_note(note_id, current_user, target_user.id, NotePermission.READ)
+    return MessageResponse(message=f"Note shared successfully with {payload.share_with_email}")
 
 
 @router.delete(

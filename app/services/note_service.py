@@ -87,7 +87,7 @@ class NoteService:
         if note.is_deleted:
             raise NoteDeletedError("Note has been deleted")
 
-        self._assert_can_read(note, user)
+        await self._assert_can_read(note, user)
         return self._decrypt_note_for_response(note)
 
     async def list_notes(
@@ -115,7 +115,7 @@ class NoteService:
         if note.is_deleted:
             raise NoteDeletedError("Cannot update a deleted note")
 
-        self._assert_can_write(note, user)
+        await self._assert_can_write(note, user)
 
         # Snapshot current state as a version BEFORE applying changes
         version_number = await self._note_repo.get_next_version_number(note_id)
@@ -142,13 +142,16 @@ class NoteService:
             else:
                 note.content = data.content
         if data.is_private is not None and data.is_private != note.is_private:
-            note.is_private = data.is_private
-            if data.is_private and data.content:
-                note.content, note.encryption_key_version = encrypt_content(data.content or note.content)
-            elif not data.is_private:
+            if data.is_private:
+                # If content was not updated in this request, we must encrypt the existing content
+                if data.content is None:
+                    note.content, note.encryption_key_version = encrypt_content(note.content)
+            else:
+                # Becoming public: decrypt current content
                 if note.encryption_key_version:
                     note.content = decrypt_content(note.content)
                 note.encryption_key_version = None
+            note.is_private = data.is_private
 
         await self._note_repo.save(note)
 
@@ -198,6 +201,11 @@ class NoteService:
 
         existing = await self._note_repo.get_share(note_id, target_user_id)
         if existing:
+            # Update permission if it changed (bonus feature)
+            if existing.permission != permission:
+                existing.permission = permission
+                await self._session.flush()
+                return existing
             raise ConflictError("Note already shared with this user")
 
         share = NoteShare(
@@ -209,6 +217,18 @@ class NoteService:
         self._session.add(share)
         await self._session.flush()
         await self._session.refresh(share)
+
+        # Simulate sending email notification
+        from app.repositories.user_repository import UserRepository
+        from app.services.email_service import EmailService
+        user_repo = UserRepository(self._session)
+        target_user = await user_repo.get_by_id(target_user_id)
+        if target_user:
+            await EmailService.send_share_notification(
+                target_email=target_user.email,
+                note_title=note.title,
+                shared_by=owner.email
+            )
 
         await self._activity_repo.log(
             user_id=owner.id,
@@ -298,7 +318,7 @@ class NoteService:
         note = await self._note_repo.get_by_id(note_id)
         if not note:
             raise NotFoundError(f"Note {note_id} not found")
-        self._assert_can_read(note, user)
+        await self._assert_can_read(note, user)
 
         version = await self._note_repo.get_version(note_id, version_number)
         if not version:
@@ -420,15 +440,26 @@ class NoteService:
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _assert_can_read(self, note: Note, user: User) -> None:
+    async def _assert_can_read(self, note: Note, user: User) -> None:
         if note.owner_id == user.id:
             return
-        # Check shares (loaded separately in service when needed)
+        
+        # Check if shared with this user
+        share = await self._note_repo.get_share(note.id, user.id)
+        if share:
+            return
+            
         raise InsufficientPermissionsError("You do not have access to this note")
 
-    def _assert_can_write(self, note: Note, user: User) -> None:
+    async def _assert_can_write(self, note: Note, user: User) -> None:
         if note.owner_id == user.id:
             return
+            
+        # Check if shared with this user with WRITE permission
+        share = await self._note_repo.get_share(note.id, user.id)
+        if share and share.permission == NotePermission.WRITE:
+            return
+            
         raise InsufficientPermissionsError("You do not have write access to this note")
 
     def _decrypt_note_for_response(self, note: Note) -> Note:
@@ -437,8 +468,18 @@ class NoteService:
         Operates on a shallow copy to avoid mutating the ORM object.
         """
         if note.is_private and note.encryption_key_version:
+            # If it's already decrypted (e.g. if we're calling this on a non-ORM object 
+            # or it was already processed), we skip to avoid Fernet errors.
+            if hasattr(note, "_is_decrypted") and note._is_decrypted:
+                return note
+
+            # Expunge the note from the session so we don't accidentally save decrypted content
+            if note in self._session:
+                self._session.expunge(note)
+            
             try:
                 note.content = decrypt_content(note.content)
+                note._is_decrypted = True # Mark as decrypted
             except Exception:
                 note.content = "[Content unavailable — decryption failed]"
         return note

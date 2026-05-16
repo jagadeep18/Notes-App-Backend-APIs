@@ -48,11 +48,23 @@ class AuthService:
         # Check uniqueness — do both checks before hashing password (avoid wasted bcrypt work)
         if await self._user_repo.email_exists(data.email):
             raise ConflictError("Email already registered")
-        if await self._user_repo.username_exists(data.username):
+        
+        username = data.username
+        if not username:
+            # Generate username from email prefix
+            base_username = data.email.split("@")[0]
+            # Ensure it matches the pattern and is unique
+            username = base_username[:50] # Limit to 50 chars
+            # Simple collision avoidance
+            if await self._user_repo.username_exists(username):
+                import secrets
+                username = f"{username[:45]}_{secrets.token_hex(2)}"
+
+        if await self._user_repo.username_exists(username):
             raise ConflictError("Username already taken")
 
         user = await self._user_repo.create(
-            username=data.username,
+            username=username,
             email=data.email,
             hashed_password=hash_password(data.password),
             full_name=data.full_name,

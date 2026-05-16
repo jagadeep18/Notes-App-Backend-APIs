@@ -70,20 +70,19 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_lim
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title=settings.app_name,
-        version=settings.app_version,
-        description="""\
-## Production-Grade Notes API
+        title="Notes App (Backend APIs)",
+        version="1.0.0",
+        description="""
+### 📝 Notes App (Backend APIs)
+Build a multi-user notes service with production-grade security and features.
 
-A multi-user notes backend with:
-- **JWT Authentication** with refresh token rotation
-- **CRUD Notes** with soft-delete and full-text search
-- **Note Sharing** with per-user permissions
-- **Version History** — every edit is snapshotted
-- **Expiring Share Links** — secure token-based public access
-- **Encrypted Private Notes** — AES-based at-rest encryption
-- **Pinned Notes** — up to 5 per user, always surfaced first
-- **Activity Timeline** — full audit trail of user actions
+**Key Features:**
+*   **User Management**: Registration and JWT-based authentication.
+*   **Notes CRUD**: Manage personal notes with title and content.
+*   **Secure Sharing**: Share notes with other users via email.
+*   **Encryption**: Optional AES-based at-rest encryption for private notes.
+*   **Search**: Full-text search across all your notes.
+*   **Versioning**: Historical snapshots and restoration.
         """,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -113,7 +112,7 @@ A multi-user notes backend with:
     register_exception_handlers(app)
 
     # ── Routers (root level — matches automated test paths) ───────────────────
-    # Auth: /signup, /login, /logout, /me, /refresh
+    # Auth: /register, /login, /logout, /me, /refresh
     app.include_router(auth.router)
 
     # Notes: /notes, /notes/{id}, /notes/{id}/share, etc.
@@ -141,22 +140,14 @@ A multi-user notes backend with:
     @app.get("/about", tags=["System"], summary="About this API")
     async def about() -> dict:
         return {
-            "app": settings.app_name,
-            "version": settings.app_version,
-            "description": "A production-grade multi-user Notes API with JWT auth, "
-                           "note sharing, version history, encrypted notes, and full-text search.",
-            "features": [
-                "JWT Authentication with refresh token rotation",
-                "CRUD Notes with soft-delete",
-                "Note Sharing with per-user permissions",
-                "Smart Version History with restore",
-                "Expiring Share Links (token-hashed)",
-                "Encrypted Private Notes (AES at rest)",
-                "Pinned Notes (max 5 per user)",
-                "Full-text Search (PostgreSQL tsvector + GIN)",
-                "Activity Timeline (audit log)",
-                "Pagination on all list endpoints",
-            ],
+            "name": "Jagadeep",
+            "email": "jagadeep@example.com",
+            "my features": {
+                "Encrypted Private Notes": "End-to-end security for sensitive data. Content is encrypted at rest using AES-128-CBC and authenticated with HMAC-SHA256 (Fernet).",
+                "Note Versioning": "Automatic snapshots on every edit. Users can view history and restore any previous version, ensuring data is never lost.",
+                "Smart Sharing": "Granular permissions (READ/WRITE) and temporary public share links with expiration and access limits.",
+                "Full-Text Search": "High-performance search using PostgreSQL tsvector and GIN indices for instant retrieval of notes by content."
+            }
         }
 
     # ── Search (dedicated endpoint) ───────────────────────────────────────────

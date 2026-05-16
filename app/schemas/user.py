@@ -13,9 +13,9 @@ USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,50}$")
 
 class UserRegisterRequest(BaseModel):
     """Spec: POST /register — only email and password required."""
-    username: str = Field(pattern=r"^[a-zA-Z0-9_-]{3,50}$")
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
+    username: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{3,50}$")
     full_name: str | None = Field(default=None, max_length=100)
 
     @field_validator("email")
