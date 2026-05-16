@@ -318,14 +318,23 @@ async function openNote(id) {
   document.getElementById('note-content').value = note.content;
   document.getElementById('note-private').checked = note.is_private;
   document.getElementById('modal-title').textContent = 'Edit Note';
-  document.getElementById('delete-btn').style.display = 'inline-flex';
+
+  const isOwner = !note.owner_id || note.owner_id === currentUser?.id;
+
+  document.getElementById('delete-btn').style.display = isOwner ? 'inline-flex' : 'none';
 
   const pinBtn = document.getElementById('pin-btn');
-  pinBtn.style.display = 'inline-flex';
+  pinBtn.style.display = isOwner ? 'inline-flex' : 'none';
   pinBtn.textContent = note.is_pinned ? '📌 Unpin' : '📌 Pin';
   pinBtn.dataset.pinned = note.is_pinned;
 
-  document.getElementById('share-section').style.display = 'block';
+  const shareSection = document.getElementById('share-section');
+  if (isOwner) {
+    shareSection.style.display = 'block';
+    loadShares(note.id);
+  } else {
+    shareSection.style.display = 'none';
+  }
   document.getElementById('note-modal').classList.add('active');
 }
 
@@ -390,22 +399,55 @@ async function handlePinToggle() {
 
 async function handleShareNote() {
   const noteId = document.getElementById('note-id').value;
-  const userId = document.getElementById('share-user-id').value.trim();
+  const userEmail = document.getElementById('share-user-id').value.trim();
   const permission = document.getElementById('share-permission').value;
 
-  if (!userId) { toast('Enter a user ID', 'error'); return; }
+  if (!userEmail) { toast('Enter a user email', 'error'); return; }
 
   const res = await api(`/notes/${noteId}/share`, {
     method: 'POST',
-    body: JSON.stringify({ share_with_email: userId }), // Specs say share_with_email
+    body: JSON.stringify({ share_with_email: userEmail, permission: permission }),
   });
 
   if (res && res.ok) {
     toast('Note shared!', 'success');
     document.getElementById('share-user-id').value = '';
+    loadShares(noteId);
   } else {
     const err = await res?.json();
     toast(err?.detail || err?.error?.message || 'Share failed', 'error');
+  }
+}
+
+async function loadShares(noteId) {
+  const container = document.getElementById('active-shares');
+  container.innerHTML = '<span style="color:var(--text-dim);font-size:0.9rem;">Loading shares...</span>';
+  const res = await api(`/notes/${noteId}/shares`);
+  if (res && res.ok) {
+    const shares = await res.json();
+    if (shares.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-dim);font-size:0.9rem;">Not shared with anyone.</p>';
+      return;
+    }
+    container.innerHTML = '<h5 style="margin:10px 0 5px 0;font-size:0.9rem;">Shared With:</h5>' + shares.map(s => `
+      <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-lighter); padding:5px 10px; border-radius:4px; margin-bottom:5px; font-size:0.9rem;">
+        <span>${escapeHtml(s.shared_with_email || 'Unknown')} <span style="color:var(--text-dim);">(${s.permission})</span></span>
+        <button type="button" class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:0.8rem;" onclick="handleRevokeShare('${noteId}', '${s.shared_with_id}')">Revoke</button>
+      </div>
+    `).join('');
+  } else {
+    container.innerHTML = '';
+  }
+}
+
+async function handleRevokeShare(noteId, userId) {
+  if(!confirm("Revoke access for this user?")) return;
+  const res = await api(`/notes/${noteId}/share/${userId}`, { method: 'DELETE' });
+  if (res && (res.ok || res.status === 204)) {
+    toast("Access revoked", "success");
+    loadShares(noteId);
+  } else {
+    toast("Failed to revoke access", "error");
   }
 }
 

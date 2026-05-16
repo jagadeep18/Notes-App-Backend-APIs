@@ -44,6 +44,7 @@ class NoteResponse(BaseModel):
 class NoteShareRequest(BaseModel):
     """Spec: POST /notes/{id}/share — payload: {share_with_email: string}"""
     share_with_email: EmailStr
+    permission: NotePermission = NotePermission.READ
 
 
 class NoteShareResponse(BaseModel):
@@ -51,8 +52,16 @@ class NoteShareResponse(BaseModel):
     shared_with_id: UUID
     permission: NotePermission
     created_at: datetime
+    shared_with_email: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        # We handle setting the email manually before normal validation
+        if hasattr(obj, "shared_with") and obj.shared_with:
+            setattr(obj, "shared_with_email", obj.shared_with.email)
+        return super().model_validate(obj, **kwargs)
 
 
 class NoteVersionResponse(BaseModel):

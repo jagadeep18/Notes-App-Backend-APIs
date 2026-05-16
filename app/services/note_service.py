@@ -185,6 +185,14 @@ class NoteService:
         )
 
     # ── Sharing ──────────────────────────────────────────────────────────────
+    
+    async def get_note_shares(self, note_id: UUID, user: User) -> list[NoteShare]:
+        note = await self._note_repo.get_by_id(note_id)
+        if not note:
+            raise NotFoundError("Note not found")
+        if note.owner_id != user.id:
+            raise InsufficientPermissionsError("Only the owner can view shares")
+        return await self._note_repo.get_shares(note_id)
 
     async def share_note(
         self, note_id: UUID, owner: User, target_user_id: UUID, permission: NotePermission

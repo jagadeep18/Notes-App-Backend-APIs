@@ -111,6 +111,14 @@ class NoteRepository(BaseRepository[Note]):
             )
         )
         return result.scalar_one_or_none()
+        
+    async def get_shares(self, note_id: UUID) -> list[NoteShare]:
+        result = await self._session.execute(
+            select(NoteShare)
+            .options(selectinload(NoteShare.shared_with))
+            .where(NoteShare.note_id == note_id)
+        )
+        return list(result.scalars().all())
 
     async def get_versions(self, note_id: UUID) -> list[NoteVersion]:
         result = await self._session.execute(

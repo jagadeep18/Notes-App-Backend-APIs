@@ -178,8 +178,7 @@ async def share_note(
         raise NotFoundError("User with that email not found")
         
     service = NoteService(db)
-    # Default to READ permission as per spec (which doesn't mention permissions)
-    await service.share_note(note_id, current_user, target_user.id, NotePermission.READ)
+    await service.share_note(note_id, current_user, target_user.id, payload.permission)
     return MessageResponse(message=f"Note shared successfully with {payload.share_with_email}")
 
 
@@ -197,6 +196,21 @@ async def unshare_note(
 ) -> None:
     service = NoteService(db)
     await service.unshare_note(note_id, current_user, user_id)
+
+
+@router.get(
+    "/{note_id}/shares",
+    response_model=list[NoteShareResponse],
+    summary="Get users a note is shared with",
+)
+async def get_note_shares(
+    note_id: UUID,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> list[NoteShareResponse]:
+    service = NoteService(db)
+    shares = await service.get_note_shares(note_id, current_user)
+    return [NoteShareResponse.model_validate(s) for s in shares]
 
 
 # ── Pinning ───────────────────────────────────────────────────────────────────

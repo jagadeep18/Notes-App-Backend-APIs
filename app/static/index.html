@@ -115,13 +115,14 @@
         <div id="share-section" class="share-section" style="display:none">
           <h4>Share this note</h4>
           <div class="share-input-row">
-            <input type="text" class="form-input" id="share-user-id" placeholder="User ID to share with">
+            <input type="text" class="form-input" id="share-user-id" placeholder="User email to share with">
             <select class="form-input" id="share-permission" style="width:auto">
               <option value="read">Read</option>
               <option value="write">Write</option>
             </select>
             <button type="button" class="btn btn-primary btn-sm" onclick="handleShareNote()">Share</button>
           </div>
+          <div id="active-shares" style="margin-top: 15px;"></div>
         </div>
       </div>
     </div>
@@ -141,6 +142,6 @@
     <div class="toast-container" id="toast-container"></div>
   </div>
 
-  <script src="/static/js/app.js?v=1.0.2"></script>
+  <script src="/static/js/app.js?v=1.0.3"></script>
 </body>
 </html>
